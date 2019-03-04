@@ -77,25 +77,27 @@ def phoneme_iter(
         yield tuple()
 
 def find_puns(
-        original_backward,
-        backward,
+        original_backward, # master phoneme-to-word trie
+        backward, # subset of phoneme-to-word trie currently in focus
         p2c, # pronunciation-to-classification dict
-        c2pl, # classification-to-pronunciatino-list
+        c2pl, # classification-to-pronunciation-list
         stream,
         so_far=None,
-        fudge=False,
-        fudged=False,
+        fudge=0,
         ):
     if so_far is None:
         so_far = []
     if stream:
         first = stream[0]
         candidate_phonemes = [first]
-        if fudge and not fudged:
+        if fudge > 0:
             candidate_phonemes.extend(c2pl[p2c[first]])
-            fudged = True
         candidate_phonemes.sort()
         for phoneme_to_check in candidate_phonemes:
+            if phoneme_to_check != first and fudge > 0:
+                new_fudge = fudge - 1
+            else:
+                new_fudge = fudge
             if phoneme_to_check in backward:
                 new_backward = backward[phoneme_to_check]
                 if CanEndHere in new_backward:
@@ -107,8 +109,7 @@ def find_puns(
                             c2pl,
                             stream[1:],
                             so_far + [candidates],
-                            fudge=fudge,
-                            fudged=fudged or phoneme_to_check != first,
+                            fudge=new_fudge,
                             ):
                         yield result
                 for result in find_puns(
@@ -118,8 +119,7 @@ def find_puns(
                         c2pl,
                         stream[1:],
                         so_far,
-                        fudge=fudge,
-                        fudged=fudged or phoneme_to_check != first,
+                        fudge=new_fudge,
                         ):
                     yield result
     elif CanEndHere in backward:
@@ -137,8 +137,10 @@ if __name__ == "__main__":
         description="Find phonetic word-plays based on input phrases",
         )
     parser.add_argument("-f", "--fudge",
-        action="store_true",
-        help="Fudge the sounds phonetically",
+        action="store",
+        type=int,
+        help="Fudge-factor for differing number of phonemes (default=0)",
+        default=0,
         )
     parser.add_argument("-d", "--dictionary",
         metavar="FILE",
@@ -160,14 +162,15 @@ if __name__ == "__main__":
         help="Phrases to riff on",
         )
     args = parser.parse_args()
-    if args.fudge:
-        log.debug("Fudging")
+    if args.fudge > 0:
+        log.debug("Fudge-factor: %i", args.fudge)
         # don't need to bother loading these
         # unless we're fudging the sounds
         log.info("Loading classifications from %s", args.classifications)
         p2c, c2pl = load_classifications(args.classifications)
     else:
         p2c = c2pl = {}
+        args.fudge = 0
     log.info("Loading dictionary from %s", args.dictionary)
     forward, backward = load_dict(args.dictionary, p2c)
     log.info("Loaded %i words", len(forward))
