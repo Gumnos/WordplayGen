@@ -137,6 +137,7 @@ if __name__ == "__main__":
         description="Find phonetic word-plays based on input phrases",
         )
     parser.add_argument("-f", "--fudge",
+        metavar="FACTOR",
         action="store",
         type=int,
         help="Fudge-factor for differing number of phonemes (default=0)",
